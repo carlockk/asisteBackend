@@ -43,6 +43,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// 🚀 RUTAS CRUD DE EMPLEADOS
 app.post('/employees', upload.single('photo'), async (req, res) => {
   const emp = new Employee({
     ...req.body,
@@ -72,7 +73,7 @@ app.delete('/employees/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// ✅ NUEVO flujo mejorado para check-in/check-out
+// 🟢 Check-In / Check-Out
 app.post('/attendance', async (req, res) => {
   const { employeeId, checkOut } = req.body;
 
@@ -81,7 +82,7 @@ app.post('/attendance', async (req, res) => {
   }
 
   if (!checkOut) {
-    // Registro de entrada
+    // Entrada
     const checkInDate = new Date();
     const attendance = new Attendance({
       employee: employeeId,
@@ -90,7 +91,7 @@ app.post('/attendance', async (req, res) => {
     await attendance.save();
     return res.json(attendance);
   } else {
-    // Registro de salida → buscar el último sin salida
+    // Salida
     const lastRecord = await Attendance.findOne({
       employee: employeeId,
       checkOut: { $exists: false }
@@ -111,7 +112,7 @@ app.post('/attendance', async (req, res) => {
   }
 });
 
-// ✅ Historial por mes
+// 📆 Historial mensual
 app.get('/attendance', async (req, res) => {
   const { employeeId, month } = req.query;
 
@@ -132,6 +133,39 @@ app.get('/attendance', async (req, res) => {
   res.json({ records, total });
 });
 
+// 🆕 Historial filtrado por fechas específicas (flatpickr u otro)
+app.post('/attendance/filter', async (req, res) => {
+  const { employeeId, dates } = req.body;
+
+  if (!employeeId || !Array.isArray(dates) || dates.length === 0) {
+    return res.status(400).json({ error: 'Parámetros inválidos' });
+  }
+
+  try {
+    const start = new Date(dates[0] + 'T00:00:00');
+    const end = new Date(dates[dates.length - 1] + 'T23:59:59');
+
+    const records = await Attendance.find({
+      employee: employeeId,
+      checkIn: { $gte: start, $lte: end }
+    });
+
+    const enriched = records.map(r => {
+      let total = 0;
+      if (r.checkIn && r.checkOut) {
+        total = (new Date(r.checkOut) - new Date(r.checkIn)) / (1000 * 60 * 60);
+      }
+      return { ...r.toObject(), totalHours: total };
+    });
+
+    res.json(enriched);
+  } catch (err) {
+    console.error('Error al obtener historial filtrado:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// 📎 Documentos
 app.post('/documents/:employeeId', upload.single('file'), async (req, res) => {
   res.json({ path: req.file.path });
 });
