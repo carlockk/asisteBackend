@@ -33,6 +33,7 @@ const AttendanceSchema = new mongoose.Schema({
   checkIn: Date,
   checkOut: Date,
   totalHours: Number,
+  note: String, // ✅ NUEVO
   createdAt: { type: Date, default: Date.now }
 });
 const Attendance = mongoose.model('Attendance', AttendanceSchema);
@@ -43,13 +44,9 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-
-// 🚀 CRUD Empleados
+// 🚀 CRUD EMPLEADOS
 app.post('/employees', upload.single('photo'), async (req, res) => {
-  const emp = new Employee({
-    ...req.body,
-    photo: req.file ? req.file.path : ''
-  });
+  const emp = new Employee({ ...req.body, photo: req.file ? req.file.path : '' });
   await emp.save();
   res.json(emp);
 });
@@ -74,10 +71,9 @@ app.delete('/employees/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-
-// 🟢 Check-In / Check-Out
+// ✅ CHECK-IN / CHECK-OUT CON NOTA
 app.post('/attendance', async (req, res) => {
-  const { employeeId, checkOut } = req.body;
+  const { employeeId, checkOut, note } = req.body;
 
   if (!employeeId) {
     return res.status(400).json({ error: 'Falta employeeId' });
@@ -87,7 +83,8 @@ app.post('/attendance', async (req, res) => {
     const checkInDate = new Date();
     const attendance = new Attendance({
       employee: employeeId,
-      checkIn: checkInDate
+      checkIn: checkInDate,
+      note: note || ''
     });
     await attendance.save();
     return res.json(attendance);
@@ -106,14 +103,14 @@ app.post('/attendance', async (req, res) => {
 
     lastRecord.checkOut = checkOutDate;
     lastRecord.totalHours = totalHours;
+    if (note) lastRecord.note = note;
     await lastRecord.save();
 
     return res.json(lastRecord);
   }
 });
 
-
-// 📆 Historial mensual
+// 📆 HISTORIAL MENSUAL
 app.get('/attendance', async (req, res) => {
   const { employeeId, month } = req.query;
 
@@ -134,8 +131,7 @@ app.get('/attendance', async (req, res) => {
   res.json({ records, total });
 });
 
-
-// ✅ Historial filtrado por fechas individuales (Flatpickr)
+// ✅ FILTRO POR RANGO DE FECHAS
 app.post('/attendance/filter', async (req, res) => {
   const { employeeId, dates } = req.body;
 
@@ -153,7 +149,7 @@ app.post('/attendance/filter', async (req, res) => {
     const records = await Attendance.find({
       employee: employeeId,
       $or: filters
-    });
+    }).sort({ checkIn: -1 });
 
     const enriched = records.map(r => {
       let total = 0;
@@ -170,13 +166,10 @@ app.post('/attendance/filter', async (req, res) => {
   }
 });
 
-
-// 📎 Subida de documentos
+// 📎 SUBIDA DE DOCUMENTOS
 app.post('/documents/:employeeId', upload.single('file'), async (req, res) => {
   res.json({ path: req.file.path });
 });
 
-
-// ▶️ Iniciar servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log('✅ Server running on ' + PORT));
