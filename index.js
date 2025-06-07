@@ -43,7 +43,8 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// 🚀 RUTAS CRUD DE EMPLEADOS
+
+// 🚀 CRUD Empleados
 app.post('/employees', upload.single('photo'), async (req, res) => {
   const emp = new Employee({
     ...req.body,
@@ -73,6 +74,7 @@ app.delete('/employees/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+
 // 🟢 Check-In / Check-Out
 app.post('/attendance', async (req, res) => {
   const { employeeId, checkOut } = req.body;
@@ -82,7 +84,6 @@ app.post('/attendance', async (req, res) => {
   }
 
   if (!checkOut) {
-    // Entrada
     const checkInDate = new Date();
     const attendance = new Attendance({
       employee: employeeId,
@@ -91,7 +92,6 @@ app.post('/attendance', async (req, res) => {
     await attendance.save();
     return res.json(attendance);
   } else {
-    // Salida
     const lastRecord = await Attendance.findOne({
       employee: employeeId,
       checkOut: { $exists: false }
@@ -111,6 +111,7 @@ app.post('/attendance', async (req, res) => {
     return res.json(lastRecord);
   }
 });
+
 
 // 📆 Historial mensual
 app.get('/attendance', async (req, res) => {
@@ -133,7 +134,8 @@ app.get('/attendance', async (req, res) => {
   res.json({ records, total });
 });
 
-// 🆕 Historial filtrado por fechas específicas (flatpickr u otro)
+
+// ✅ Historial filtrado por fechas individuales (Flatpickr)
 app.post('/attendance/filter', async (req, res) => {
   const { employeeId, dates } = req.body;
 
@@ -142,12 +144,15 @@ app.post('/attendance/filter', async (req, res) => {
   }
 
   try {
-    const start = new Date(dates[0] + 'T00:00:00');
-    const end = new Date(dates[dates.length - 1] + 'T23:59:59');
+    const filters = dates.map(date => {
+      const start = new Date(date + 'T00:00:00');
+      const end = new Date(date + 'T23:59:59');
+      return { checkIn: { $gte: start, $lte: end } };
+    });
 
     const records = await Attendance.find({
       employee: employeeId,
-      checkIn: { $gte: start, $lte: end }
+      $or: filters
     });
 
     const enriched = records.map(r => {
@@ -165,10 +170,13 @@ app.post('/attendance/filter', async (req, res) => {
   }
 });
 
-// 📎 Documentos
+
+// 📎 Subida de documentos
 app.post('/documents/:employeeId', upload.single('file'), async (req, res) => {
   res.json({ path: req.file.path });
 });
 
+
+// ▶️ Iniciar servidor
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log('Server running on ' + PORT));
+app.listen(PORT, () => console.log('✅ Server running on ' + PORT));
