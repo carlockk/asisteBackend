@@ -72,32 +72,46 @@ app.delete('/employees/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+// ✅ NUEVO flujo mejorado para check-in/check-out
 app.post('/attendance', async (req, res) => {
-  const { employeeId, checkIn, checkOut } = req.body;
+  const { employeeId, checkOut } = req.body;
 
   if (!employeeId) {
     return res.status(400).json({ error: 'Falta employeeId' });
   }
 
-  const checkInDate = checkIn ? new Date(checkIn) : new Date();
-  let totalHours = 0;
+  if (!checkOut) {
+    // Registro de entrada
+    const checkInDate = new Date();
+    const attendance = new Attendance({
+      employee: employeeId,
+      checkIn: checkInDate
+    });
+    await attendance.save();
+    return res.json(attendance);
+  } else {
+    // Registro de salida → buscar el último sin salida
+    const lastRecord = await Attendance.findOne({
+      employee: employeeId,
+      checkOut: { $exists: false }
+    }).sort({ checkIn: -1 });
 
-  if (checkOut) {
+    if (!lastRecord) {
+      return res.status(400).json({ error: 'No se encontró entrada activa' });
+    }
+
     const checkOutDate = new Date(checkOut);
-    totalHours = (checkOutDate - checkInDate) / (1000 * 60 * 60);
+    const totalHours = (checkOutDate - new Date(lastRecord.checkIn)) / (1000 * 60 * 60);
+
+    lastRecord.checkOut = checkOutDate;
+    lastRecord.totalHours = totalHours;
+    await lastRecord.save();
+
+    return res.json(lastRecord);
   }
-
-  const attendance = new Attendance({
-    employee: employeeId,
-    checkIn: checkInDate,
-    checkOut: checkOut ? new Date(checkOut) : undefined,
-    totalHours
-  });
-
-  await attendance.save();
-  res.json(attendance);
 });
 
+// ✅ Historial por mes
 app.get('/attendance', async (req, res) => {
   const { employeeId, month } = req.query;
 
