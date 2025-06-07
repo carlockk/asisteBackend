@@ -44,7 +44,10 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 app.post('/employees', upload.single('photo'), async (req, res) => {
-  const emp = new Employee({ ...req.body, photo: req.file?.filename });
+  const emp = new Employee({
+    ...req.body,
+    photo: req.file ? req.file.path : ''
+  });
   await emp.save();
   res.json(emp);
 });
@@ -54,22 +57,40 @@ app.get('/employees', async (req, res) => {
   res.json(employees);
 });
 
+app.get('/employees/:id', async (req, res) => {
+  const emp = await Employee.findById(req.params.id);
+  res.json(emp);
+});
+
+app.put('/employees/:id', async (req, res) => {
+  const emp = await Employee.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  res.json(emp);
+});
+
+app.delete('/employees/:id', async (req, res) => {
+  await Employee.findByIdAndDelete(req.params.id);
+  res.json({ success: true });
+});
+
 app.post('/attendance', async (req, res) => {
   const { employeeId, checkIn, checkOut } = req.body;
 
-  const parsedCheckIn = new Date(checkIn || Date.now());
-  const parsedCheckOut = checkOut ? new Date(checkOut) : null;
+  if (!employeeId) {
+    return res.status(400).json({ error: 'Falta employeeId' });
+  }
 
+  const checkInDate = checkIn ? new Date(checkIn) : new Date();
   let totalHours = 0;
-  if (parsedCheckIn && parsedCheckOut) {
-    totalHours = (parsedCheckOut - parsedCheckIn) / (1000 * 60 * 60);
-    totalHours = Math.round(totalHours * 100) / 100;
+
+  if (checkOut) {
+    const checkOutDate = new Date(checkOut);
+    totalHours = (checkOutDate - checkInDate) / (1000 * 60 * 60);
   }
 
   const attendance = new Attendance({
     employee: employeeId,
-    checkIn: parsedCheckIn,
-    checkOut: parsedCheckOut,
+    checkIn: checkInDate,
+    checkOut: checkOut ? new Date(checkOut) : undefined,
     totalHours
   });
 
@@ -78,13 +99,13 @@ app.post('/attendance', async (req, res) => {
 });
 
 app.get('/attendance', async (req, res) => {
-  const { employeeId, month, year } = req.query;
+  const { employeeId, month } = req.query;
 
-  if (!employeeId || !month || !year) {
-    return res.status(400).json({ error: 'Faltan parámetros' });
+  if (!employeeId || !month || !/^\d{4}-\d{2}$/.test(month)) {
+    return res.status(400).json({ error: 'Parámetros inválidos' });
   }
 
-  const start = new Date(`${year}-${month}-01`);
+  const start = new Date(`${month}-01T00:00:00`);
   const end = new Date(start);
   end.setMonth(end.getMonth() + 1);
 
@@ -94,7 +115,11 @@ app.get('/attendance', async (req, res) => {
   });
 
   const total = records.reduce((acc, r) => acc + (r.totalHours || 0), 0);
-  res.json({ records, total: Math.round(total * 100) / 100 });
+  res.json({ records, total });
+});
+
+app.post('/documents/:employeeId', upload.single('file'), async (req, res) => {
+  res.json({ path: req.file.path });
 });
 
 const PORT = process.env.PORT || 3001;
