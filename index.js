@@ -10,15 +10,10 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static('uploads'));
 
 const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/asiste';
-mongoose.connect(mongoUri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+mongoose.connect(mongoUri, { useNewUrlParser: true, useUnifiedTopology: true });
 
-// 📦 Esquemas
 const EmployeeSchema = new mongoose.Schema({
   identityNumber: String,
   firstName: String,
@@ -29,7 +24,7 @@ const EmployeeSchema = new mongoose.Schema({
   email: String,
   birthday: Date,
   hireDate: Date,
-  hourlyRate: Number,
+  hourlyRate: Number
 });
 const Employee = mongoose.model('Employee', EmployeeSchema);
 
@@ -38,92 +33,53 @@ const AttendanceSchema = new mongoose.Schema({
   checkIn: Date,
   checkOut: Date,
   totalHours: Number,
-  createdAt: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now }
 });
 const Attendance = mongoose.model('Attendance', AttendanceSchema);
 
-// 📷 Subida de foto
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const upload = multer({ storage });
 
-// 📁 Endpoints
+app.post('/employees', upload.single('photo'), async (req, res) => {
+  const emp = new Employee({ ...req.body, photo: req.file?.filename });
+  await emp.save();
+  res.json(emp);
+});
+
 app.get('/employees', async (req, res) => {
   const employees = await Employee.find();
   res.json(employees);
 });
 
-app.get('/employees/:id', async (req, res) => {
-  const emp = await Employee.findById(req.params.id);
-  res.json(emp);
-});
-
-app.post('/employees', upload.single('photo'), async (req, res) => {
-  const data = req.body;
-  if (req.file) {
-    data.photo = req.file.path;
-  }
-  const emp = new Employee(data);
-  await emp.save();
-  res.json(emp);
-});
-
-app.put('/employees/:id', async (req, res) => {
-  const emp = await Employee.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-  });
-  res.json(emp);
-});
-
-app.delete('/employees/:id', async (req, res) => {
-  await Employee.findByIdAndDelete(req.params.id);
-  res.json({ success: true });
-});
-
-// 🕒 Registro de asistencia (con validación)
 app.post('/attendance', async (req, res) => {
   const { employeeId, checkIn, checkOut } = req.body;
 
-  if (!employeeId) {
-    return res.status(400).json({ error: 'Falta el ID del empleado' });
-  }
+  const parsedCheckIn = new Date(checkIn || Date.now());
+  const parsedCheckOut = checkOut ? new Date(checkOut) : null;
 
-  if (checkIn && !checkOut) {
-    const existing = await Attendance.findOne({
-      employee: employeeId,
-      checkOut: { $exists: false },
-    });
-    if (existing) {
-      return res
-        .status(400)
-        .json({ error: 'Ya existe una entrada sin salida' });
-    }
-  }
-
-  const checkInDate = checkIn ? new Date(checkIn) : new Date();
   let totalHours = 0;
-
-  if (checkOut) {
-    const checkOutDate = new Date(checkOut);
-    totalHours = (checkOutDate - checkInDate) / (1000 * 60 * 60);
+  if (parsedCheckIn && parsedCheckOut) {
+    totalHours = (parsedCheckOut - parsedCheckIn) / (1000 * 60 * 60);
+    totalHours = Math.round(totalHours * 100) / 100;
   }
 
   const attendance = new Attendance({
     employee: employeeId,
-    checkIn: checkInDate,
-    checkOut: checkOut ? new Date(checkOut) : undefined,
-    totalHours,
+    checkIn: parsedCheckIn,
+    checkOut: parsedCheckOut,
+    totalHours
   });
 
   await attendance.save();
   res.json(attendance);
 });
 
-// 📊 Historial por mes y año
 app.get('/attendance', async (req, res) => {
   const { employeeId, month, year } = req.query;
+
   if (!employeeId || !month || !year) {
     return res.status(400).json({ error: 'Faltan parámetros' });
   }
@@ -134,18 +90,12 @@ app.get('/attendance', async (req, res) => {
 
   const records = await Attendance.find({
     employee: employeeId,
-    checkIn: { $gte: start, $lt: end },
+    checkIn: { $gte: start, $lt: end }
   });
 
   const total = records.reduce((acc, r) => acc + (r.totalHours || 0), 0);
-  res.json({ records, total });
+  res.json({ records, total: Math.round(total * 100) / 100 });
 });
 
-// 📁 Subir archivos externos si es necesario
-app.post('/documents/:employeeId', upload.single('file'), async (req, res) => {
-  res.json({ path: req.file.path });
-});
-
-// 🚀 Puerto
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log('✅ Servidor corriendo en ' + PORT));
+app.listen(PORT, () => console.log('Server running on ' + PORT));
