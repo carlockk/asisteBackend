@@ -109,16 +109,19 @@ app.post('/attendance', async (req, res) => {
 
 app.get('/attendance', async (req, res) => {
   const { employeeId, month } = req.query;
-  const start = new Date(month + '-01');
+  const start = new Date(`${month}-01`);
   const end = new Date(start);
   end.setMonth(end.getMonth() + 1);
+
   const records = await Attendance.find({
     employee: employeeId,
     checkIn: { $gte: start, $lt: end }
-  });
+  }).populate('employee');
+
   const total = records.reduce((acc, r) => acc + (r.totalHours || 0), 0);
   res.json({ records, total });
 });
+
 
 app.post('/documents/:employeeId', upload.single('file'), async (req, res) => {
   res.json({ path: `/uploads/${req.file.filename}` });
