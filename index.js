@@ -12,7 +12,6 @@ const app = express();
 app.use(cors({
   origin: 'https://asiste-frontend.vercel.app',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
 }));
 app.use(express.json());
 app.use('/uploads', express.static('uploads')); // Servir archivos subidos
