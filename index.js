@@ -4,6 +4,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const multer = require('multer');
+const { verificarToken } = require('./middleware/auth'); // ✅ Middleware de autenticación
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -11,9 +12,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// 🔌 Conexión a MongoDB
 const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/asiste';
 mongoose.connect(mongoUri);
 
+// 📦 Modelos internos
 const EmployeeSchema = new mongoose.Schema({
   identityNumber: String,
   firstName: String,
@@ -33,11 +36,12 @@ const AttendanceSchema = new mongoose.Schema({
   checkIn: Date,
   checkOut: Date,
   totalHours: Number,
-  note: String, // ✅ NUEVO
+  note: String,
   createdAt: { type: Date, default: Date.now }
 });
 const Attendance = mongoose.model('Attendance', AttendanceSchema);
 
+// 🖼️ Configuración de subida de imágenes/documentos
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
@@ -71,13 +75,11 @@ app.delete('/employees/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// ✅ CHECK-IN / CHECK-OUT CON NOTA
+// ⏱️ CHECK-IN / CHECK-OUT
 app.post('/attendance', async (req, res) => {
   const { employeeId, checkOut, note } = req.body;
 
-  if (!employeeId) {
-    return res.status(400).json({ error: 'Falta employeeId' });
-  }
+  if (!employeeId) return res.status(400).json({ error: 'Falta employeeId' });
 
   if (!checkOut) {
     const checkInDate = new Date();
@@ -131,7 +133,7 @@ app.get('/attendance', async (req, res) => {
   res.json({ records, total });
 });
 
-// ✅ FILTRO POR RANGO DE FECHAS
+// 📊 HISTORIAL POR RANGO DE FECHAS
 app.post('/attendance/filter', async (req, res) => {
   const { employeeId, dates } = req.body;
 
@@ -171,8 +173,14 @@ app.post('/documents/:employeeId', upload.single('file'), async (req, res) => {
   res.json({ path: req.file.path });
 });
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log('✅ Server running on ' + PORT));
+// 📌 RUTAS PROTEGIDAS
+const aseoRoutes = require('./routes/aseo');
+app.use('/api/aseo', verificarToken, aseoRoutes);
 
+// 📌 OTRAS RUTAS
 const vacationRoutes = require('./routes/vacations');
 app.use('/vacations', vacationRoutes);
+
+// 🚀 INICIO DEL SERVIDOR
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log('✅ Server running on ' + PORT));
