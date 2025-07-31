@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/asiste';
-mongoose.connect(mongoUri, { useNewUrlParser: true, useUnifiedTopology: true });
+mongoose.connect(mongoUri);
 
 const EmployeeSchema = new mongoose.Schema({
   identityNumber: String,
