@@ -1,25 +1,35 @@
+// middleware/auth.js
 const jwt = require('jsonwebtoken');
+const SECRET = process.env.JWT_SECRET || 'secreto123';
 
 function verificarToken(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Token requerido' });
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token no proporcionado' });
+  }
 
+  const token = auth.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, SECRET);
     req.user = decoded;
     next();
   } catch (err) {
-    return res.status(401).json({ error: 'Token inválido' });
+    return res.status(403).json({ error: 'Token inválido' });
   }
 }
 
-function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.rol)) {
-      return res.status(403).json({ error: 'Acceso denegado' });
-    }
-    next();
-  };
+function soloAdmin(req, res, next) {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Acceso solo para administradores' });
+  }
+  next();
 }
 
-module.exports = { verificarToken, requireRole };
+function soloAdminOGestor(req, res, next) {
+  if (!['admin', 'gestor'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Acceso denegado' });
+  }
+  next();
+}
+
+module.exports = { verificarToken, soloAdmin, soloAdminOGestor };
