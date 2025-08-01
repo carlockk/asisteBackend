@@ -1,109 +1,171 @@
-// src/pages/Admin.jsx
-import React, { useEffect, useState } from 'react';
-import {
-  Box,
-  Typography,
-  Button,
-  Table,
-  TableHead,
-  TableBody,
-  TableCell,
-  TableRow,
-  Paper,
-  Alert,
-  CircularProgress
-} from '@mui/material';
-import api from '../api/axios';
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const dotenv = require('dotenv');
+const path = require('path');
+const multer = require('multer');
+const { verificarToken } = require('./middleware/auth');
 
-function Admin() {
-  const [empleados, setEmpleados] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+dotenv.config({ path: path.join(__dirname, '.env') });
 
-  const cargarEmpleados = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await api.get('/employees'); // 👈 SIN /api
-      setEmpleados(res.data);
-    } catch (err) {
-      console.error('❌ Error al cargar empleados:', err);
-      setError('No se pudo cargar la lista de empleados');
-    } finally {
-      setLoading(false);
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// 📦 Conexión a MongoDB
+const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/asiste';
+mongoose.connect(mongoUri)
+  .then(() => console.log('✅ Conectado a MongoDB'))
+  .catch(console.error);
+
+// 📂 Modelos
+const Employee = require('./models/Employee');
+const Attendance = require('./models/Attendance');
+
+// 📤 Carga de imágenes
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'uploads/'),
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+});
+const upload = multer({ storage });
+
+// 🚀 CRUD Empleados
+app.post('/employees', upload.single('photo'), async (req, res) => {
+  const emp = new Employee({ ...req.body, photo: req.file ? req.file.path : '' });
+  await emp.save();
+  res.json(emp);
+});
+
+app.get('/employees', async (req, res) => {
+  const employees = await Employee.find();
+  res.json(employees);
+});
+
+app.get('/employees/:id', async (req, res) => {
+  const emp = await Employee.findById(req.params.id);
+  res.json(emp);
+});
+
+app.put('/employees/:id', async (req, res) => {
+  const emp = await Employee.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  res.json(emp);
+});
+
+app.delete('/employees/:id', async (req, res) => {
+  await Employee.findByIdAndDelete(req.params.id);
+  res.json({ success: true });
+});
+
+// ⏱️ Check-in / Check-out
+app.post('/attendance', async (req, res) => {
+  const { employeeId, checkOut, note } = req.body;
+  if (!employeeId) return res.status(400).json({ error: 'Falta employeeId' });
+
+  if (!checkOut) {
+    const checkInDate = new Date();
+    const attendance = new Attendance({
+      employee: employeeId,
+      checkIn: checkInDate,
+      note: note || ''
+    });
+    await attendance.save();
+    return res.json(attendance);
+  } else {
+    const lastRecord = await Attendance.findOne({
+      employee: employeeId,
+      checkOut: { $exists: false }
+    }).sort({ checkIn: -1 });
+
+    if (!lastRecord) {
+      return res.status(400).json({ error: 'No se encontró entrada activa' });
     }
-  };
 
-  useEffect(() => {
-    cargarEmpleados();
-  }, []);
+    const checkOutDate = new Date(checkOut);
+    const totalHours = (checkOutDate - new Date(lastRecord.checkIn)) / (1000 * 60 * 60);
 
-  const cerrarSesion = () => {
-    localStorage.clear();
-    window.location.href = '/';
-  };
+    lastRecord.checkOut = checkOutDate;
+    lastRecord.totalHours = totalHours;
+    if (note) lastRecord.note = note;
+    await lastRecord.save();
 
-  return (
-    <Box p={4}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">Panel de Administración</Typography>
-        <Button onClick={cerrarSesion} color="error" variant="outlined">
-          Cerrar sesión
-        </Button>
-      </Box>
+    return res.json(lastRecord);
+  }
+});
 
-      <Button variant="contained" color="primary" sx={{ mb: 2 }}>
-        + Agregar empleado
-      </Button>
+// 📆 Historial mensual
+app.get('/attendance', async (req, res) => {
+  const { employeeId, month } = req.query;
+  if (!employeeId || !month || !/^\d{4}-\d{2}$/.test(month)) {
+    return res.status(400).json({ error: 'Parámetros inválidos' });
+  }
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          ❌ {error}
-        </Alert>
-      )}
+  const start = new Date(`${month}-01T00:00:00`);
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + 1);
 
-      {loading ? (
-        <CircularProgress />
-      ) : (
-        <Paper>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell><strong>Nombre</strong></TableCell>
-                <TableCell><strong>Correo</strong></TableCell>
-                <TableCell><strong>Teléfono</strong></TableCell>
-                <TableCell><strong>Acciones</strong></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {empleados.map((emp) => (
-                <TableRow key={emp._id}>
-                  <TableCell>{emp.nombre}</TableCell>
-                  <TableCell>{emp.correo}</TableCell>
-                  <TableCell>{emp.telefono || '—'}</TableCell>
-                  <TableCell>
-                    <Button size="small" color="primary" variant="outlined">
-                      Editar
-                    </Button>
-                    <Button size="small" color="error" variant="outlined" sx={{ ml: 1 }}>
-                      Eliminar
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {empleados.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} align="center">
-                    No hay empleados registrados.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </Paper>
-      )}
-    </Box>
-  );
-}
+  const records = await Attendance.find({
+    employee: employeeId,
+    checkIn: { $gte: start, $lt: end }
+  });
 
-export default Admin;
+  const total = records.reduce((acc, r) => acc + (r.totalHours || 0), 0);
+  res.json({ records, total });
+});
+
+// 📊 Historial por rango de fechas
+app.post('/attendance/filter', async (req, res) => {
+  const { employeeId, dates } = req.body;
+
+  if (!employeeId || !Array.isArray(dates) || dates.length === 0) {
+    return res.status(400).json({ error: 'Parámetros inválidos' });
+  }
+
+  try {
+    const filters = dates.map(date => {
+      const start = new Date(date + 'T00:00:00');
+      const end = new Date(date + 'T23:59:59');
+      return { checkIn: { $gte: start, $lte: end } };
+    });
+
+    const records = await Attendance.find({
+      employee: employeeId,
+      $or: filters
+    }).sort({ checkIn: -1 });
+
+    const enriched = records.map(r => {
+      let total = 0;
+      if (r.checkIn && r.checkOut) {
+        total = (new Date(r.checkOut) - new Date(r.checkIn)) / (1000 * 60 * 60);
+      }
+      return { ...r.toObject(), totalHours: total };
+    });
+
+    res.json(enriched);
+  } catch (err) {
+    console.error('Error al obtener historial filtrado:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// 📎 Subida de documentos
+app.post('/documents/:employeeId', upload.single('file'), async (req, res) => {
+  res.json({ path: req.file.path });
+});
+
+// 🔐 Rutas protegidas con token
+const aseoRoutes = require('./routes/aseo');
+app.use('/api/aseo', verificarToken, aseoRoutes);
+
+const vacationRoutes = require('./routes/vacations');
+app.use('/vacations', verificarToken, vacationRoutes);
+
+const usuariosRoutes = require('./routes/usuarios');
+app.use('/api/usuarios', usuariosRoutes);
+
+// 🔑 Login
+const authRoutes = require('./routes/auth');
+app.use('/auth', authRoutes);
+
+// 🚀 Iniciar servidor
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log(`🚀 Backend corriendo en http://localhost:${PORT}`));
