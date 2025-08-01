@@ -9,27 +9,8 @@ const { verificarToken } = require('./middleware/auth');
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
+app.use(cors());
 app.use(express.json());
-
-// ✅ Configuración de CORS
-const allowedOrigins = [
-  'http://localhost:5173',
-  'https://asistefrontend.vercel.app'
-];
-
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-app.options('*', cors());
-
-// ✅ Ruta básica para verificar que el backend está corriendo
-app.get('/', (req, res) => {
-  res.send('✅ Backend funcionando');
-});
 
 // 📦 Conexión a MongoDB
 const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/asiste';
@@ -37,30 +18,9 @@ mongoose.connect(mongoUri)
   .then(() => console.log('✅ Conectado a MongoDB'))
   .catch(console.error);
 
-// 📂 Modelos locales
-const EmployeeSchema = new mongoose.Schema({
-  identityNumber: String,
-  firstName: String,
-  lastName: String,
-  photo: String,
-  address: String,
-  phone: String,
-  email: String,
-  birthday: Date,
-  hireDate: Date,
-  hourlyRate: Number
-});
-const Employee = mongoose.model('Employee', EmployeeSchema);
-
-const AttendanceSchema = new mongoose.Schema({
-  employee: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
-  checkIn: Date,
-  checkOut: Date,
-  totalHours: Number,
-  note: String,
-  createdAt: { type: Date, default: Date.now }
-});
-const Attendance = mongoose.model('Attendance', AttendanceSchema);
+// 📂 Modelos
+const Employee = require('./models/Employee');
+const Attendance = require('./models/Attendance');
 
 // 📤 Carga de imágenes
 const storage = multer.diskStorage({
@@ -192,15 +152,17 @@ app.post('/documents/:employeeId', upload.single('file'), async (req, res) => {
   res.json({ path: req.file.path });
 });
 
-// 🔐 Rutas protegidas
+// 🔐 Rutas protegidas con token
 const aseoRoutes = require('./routes/aseo');
 app.use('/api/aseo', verificarToken, aseoRoutes);
 
-// 📅 Vacaciones
 const vacationRoutes = require('./routes/vacations');
-app.use('/vacations', vacationRoutes);
+app.use('/vacations', verificarToken, vacationRoutes);
 
-// 🔑 Ruta de login
+const usuariosRoutes = require('./routes/usuarios');
+app.use('/api/usuarios', verificarToken, usuariosRoutes);
+
+// 🔑 Login
 const authRoutes = require('./routes/auth');
 app.use('/auth', authRoutes);
 
