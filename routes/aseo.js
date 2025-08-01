@@ -13,7 +13,7 @@ function requireRole(...roles) {
   };
 }
 
-// 🔹 Obtener todos los ítems (disponible para todos los logueados)
+// 🔹 Obtener todos los ítems
 router.get('/items', async (req, res) => {
   try {
     const items = await AseoItem.find().sort({ creadoEn: -1 });
@@ -23,7 +23,7 @@ router.get('/items', async (req, res) => {
   }
 });
 
-// 🔹 Crear ítem (solo admin o gestor)
+// 🔹 Crear ítem
 router.post('/', requireRole('admin', 'gestor'), async (req, res) => {
   const { enunciado } = req.body;
   if (!enunciado) return res.status(400).json({ error: 'Enunciado requerido' });
@@ -81,18 +81,43 @@ router.post('/checklist', requireRole('empleado', 'gestor', 'admin'), async (req
 
     const nuevoChecklist = new AseoChecklist({
       fecha: new Date(),
-      empleados, // IDs de usuario
+      empleados,
       items,
       observaciones: observacion || '',
-      creadoPor: req.user._id // ID del usuario logueado que creó el checklist
+      creadoPor: req.user._id
     });
 
     await nuevoChecklist.save();
-
     res.status(201).json({ mensaje: 'Checklist guardado correctamente' });
   } catch (err) {
     console.error('❌ Error al guardar checklist:', err);
     res.status(500).json({ error: 'Error al guardar checklist' });
+  }
+});
+
+// 🔹 Ver historial por empleado y/o fechas
+router.get('/historial', requireRole('admin', 'gestor'), async (req, res) => {
+  const { empleadoId, desde, hasta } = req.query;
+  const filtro = {};
+
+  if (empleadoId) filtro.empleados = empleadoId;
+
+  if (desde || hasta) {
+    filtro.fecha = {};
+    if (desde) filtro.fecha.$gte = new Date(desde);
+    if (hasta) filtro.fecha.$lte = new Date(hasta);
+  }
+
+  try {
+    const historial = await AseoChecklist.find(filtro)
+      .populate('empleados', 'nombre apellido correo')
+      .populate('items.itemId', 'enunciado')
+      .sort({ fecha: -1 });
+
+    res.json(historial);
+  } catch (err) {
+    console.error('❌ Error al obtener historial:', err);
+    res.status(500).json({ error: 'Error al obtener historial' });
   }
 });
 
