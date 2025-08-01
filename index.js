@@ -160,7 +160,7 @@ const vacationRoutes = require('./routes/vacations');
 app.use('/vacations', verificarToken, vacationRoutes);
 
 const usuariosRoutes = require('./routes/usuarios');
-app.use('/api/usuarios', verificarToken, usuariosRoutes);
+app.use('/api/usuarios', usuariosRoutes);
 
 // 🔑 Login
 const authRoutes = require('./routes/auth');
