@@ -17,7 +17,8 @@ function requireRole(...roles) {
 //
 // 🔹 Ruta para obtener todos los ítems (disponible para todos los logueados)
 //
-router.get('/', async (req, res) => {
+router.get('/items', async (req, res) => {
+
   try {
     const items = await AseoItem.find().sort({ creadoEn: -1 });
     res.json(items);
