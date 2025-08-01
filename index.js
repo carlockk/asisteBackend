@@ -4,7 +4,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const multer = require('multer');
-const { verificarToken } = require('./middleware/auth'); // ✅ Middleware de autenticación
+const { verificarToken } = require('./middleware/auth');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -12,11 +12,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🔌 Conexión a MongoDB
+// 📦 Conexión a MongoDB
 const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/asiste';
-mongoose.connect(mongoUri);
+mongoose.connect(mongoUri).then(() => console.log('✅ Conectado a MongoDB')).catch(console.error);
 
-// 📦 Modelos internos
+// 📂 Modelos locales
 const EmployeeSchema = new mongoose.Schema({
   identityNumber: String,
   firstName: String,
@@ -41,14 +41,14 @@ const AttendanceSchema = new mongoose.Schema({
 });
 const Attendance = mongoose.model('Attendance', AttendanceSchema);
 
-// 🖼️ Configuración de subida de imágenes/documentos
+// 📤 Carga de imágenes
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const upload = multer({ storage });
 
-// 🚀 CRUD EMPLEADOS
+// 🚀 CRUD Empleados
 app.post('/employees', upload.single('photo'), async (req, res) => {
   const emp = new Employee({ ...req.body, photo: req.file ? req.file.path : '' });
   await emp.save();
@@ -75,10 +75,9 @@ app.delete('/employees/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// ⏱️ CHECK-IN / CHECK-OUT
+// ⏱️ Check-in / Check-out
 app.post('/attendance', async (req, res) => {
   const { employeeId, checkOut, note } = req.body;
-
   if (!employeeId) return res.status(400).json({ error: 'Falta employeeId' });
 
   if (!checkOut) {
@@ -112,10 +111,9 @@ app.post('/attendance', async (req, res) => {
   }
 });
 
-// 📆 HISTORIAL MENSUAL
+// 📆 Historial mensual
 app.get('/attendance', async (req, res) => {
   const { employeeId, month } = req.query;
-
   if (!employeeId || !month || !/^\d{4}-\d{2}$/.test(month)) {
     return res.status(400).json({ error: 'Parámetros inválidos' });
   }
@@ -133,7 +131,7 @@ app.get('/attendance', async (req, res) => {
   res.json({ records, total });
 });
 
-// 📊 HISTORIAL POR RANGO DE FECHAS
+// 📊 Historial por rango de fechas
 app.post('/attendance/filter', async (req, res) => {
   const { employeeId, dates } = req.body;
 
@@ -168,19 +166,23 @@ app.post('/attendance/filter', async (req, res) => {
   }
 });
 
-// 📎 SUBIDA DE DOCUMENTOS
+// 📎 Subida de documentos
 app.post('/documents/:employeeId', upload.single('file'), async (req, res) => {
   res.json({ path: req.file.path });
 });
 
-// 📌 RUTAS PROTEGIDAS
+// 🔐 Rutas protegidas
 const aseoRoutes = require('./routes/aseo');
 app.use('/api/aseo', verificarToken, aseoRoutes);
 
-// 📌 OTRAS RUTAS
+// 📅 Vacaciones
 const vacationRoutes = require('./routes/vacations');
 app.use('/vacations', vacationRoutes);
 
-// 🚀 INICIO DEL SERVIDOR
+// 🔑 Ruta de login (✅ nuevo)
+const authRoutes = require('./routes/auth');
+app.use('/auth', authRoutes);
+
+// 🚀 Start server
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log('✅ Server running on ' + PORT));
+app.listen(PORT, () => console.log(`🚀 Backend corriendo en http://localhost:${PORT}`));
