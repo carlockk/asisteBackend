@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const AseoItem = require('../models/AseoItem');
 const AseoChecklist = require('../models/AseoChecklist');
+const Checklist = require('../models/AseoChecklist'); // Asegúrate de tener este modelo creado
 
 // Middleware
 function requireRole(...roles) {
@@ -12,6 +13,29 @@ function requireRole(...roles) {
     next();
   };
 }
+
+router.post('/checklist', async (req, res) => {
+  const { usuario, itemsMarcados, observacion } = req.body;
+
+  if (!usuario || !itemsMarcados) {
+    return res.status(400).json({ error: 'Faltan datos' });
+  }
+
+  try {
+    const nuevoChecklist = new Checklist({
+      usuario,
+      itemsMarcados,
+      observacion,
+      fecha: new Date()
+    });
+
+    await nuevoChecklist.save();
+    res.status(201).json({ mensaje: 'Checklist guardado correctamente' });
+  } catch (err) {
+    console.error('❌ Error al guardar checklist:', err);
+    res.status(500).json({ error: 'Error al guardar checklist' });
+  }
+});
 
 // Obtener ítems (público)
 router.get('/', async (req, res) => {
