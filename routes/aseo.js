@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-
 const AseoItem = require('../models/AseoItem');
 const AseoChecklist = require('../models/AseoChecklist');
 
@@ -14,11 +13,8 @@ function requireRole(...roles) {
   };
 }
 
-//
-// 🔹 Ruta para obtener todos los ítems (disponible para todos los logueados)
-//
+// 🔹 Obtener todos los ítems (disponible para todos los logueados)
 router.get('/items', async (req, res) => {
-
   try {
     const items = await AseoItem.find().sort({ creadoEn: -1 });
     res.json(items);
@@ -27,9 +23,7 @@ router.get('/items', async (req, res) => {
   }
 });
 
-//
 // 🔹 Crear ítem (solo admin o gestor)
-//
 router.post('/', requireRole('admin', 'gestor'), async (req, res) => {
   const { enunciado } = req.body;
   if (!enunciado) return res.status(400).json({ error: 'Enunciado requerido' });
@@ -46,9 +40,7 @@ router.post('/', requireRole('admin', 'gestor'), async (req, res) => {
   }
 });
 
-//
 // 🔹 Editar ítem
-//
 router.put('/:id', requireRole('admin', 'gestor'), async (req, res) => {
   const { enunciado } = req.body;
   try {
@@ -59,9 +51,7 @@ router.put('/:id', requireRole('admin', 'gestor'), async (req, res) => {
   }
 });
 
-//
 // 🔹 Eliminar ítem
-//
 router.delete('/:id', requireRole('admin'), async (req, res) => {
   try {
     await AseoItem.findByIdAndDelete(req.params.id);
@@ -71,18 +61,19 @@ router.delete('/:id', requireRole('admin'), async (req, res) => {
   }
 });
 
-//
-// 🔹 Guardar checklist (admin, gestor o empleado)
-//
+// 🔹 Guardar checklist
 router.post('/checklist', requireRole('empleado', 'gestor', 'admin'), async (req, res) => {
   const { empleados, itemsMarcados, observacion } = req.body;
 
-  if (!empleados || !Array.isArray(empleados) || empleados.length === 0 || !itemsMarcados) {
-    return res.status(400).json({ error: 'Faltan datos obligatorios' });
+  if (!empleados || !Array.isArray(empleados) || empleados.length === 0) {
+    return res.status(400).json({ error: 'Debe seleccionar al menos un empleado' });
+  }
+
+  if (!itemsMarcados || typeof itemsMarcados !== 'object') {
+    return res.status(400).json({ error: 'Ítems marcados inválidos' });
   }
 
   try {
-    // Convertir itemsMarcados {id1: true, id2: false} a array de { itemId, cumple }
     const items = Object.entries(itemsMarcados).map(([itemId, cumple]) => ({
       itemId,
       cumple
@@ -90,10 +81,10 @@ router.post('/checklist', requireRole('empleado', 'gestor', 'admin'), async (req
 
     const nuevoChecklist = new AseoChecklist({
       fecha: new Date(),
-      empleados, // array de IDs de usuarios
+      empleados, // IDs de usuario
       items,
-      creadoPor: req.user?.nombre || 'Sistema',
-      observacion: observacion || ''
+      observaciones: observacion || '',
+      creadoPor: req.user._id // ID del usuario logueado que creó el checklist
     });
 
     await nuevoChecklist.save();
