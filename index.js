@@ -9,21 +9,33 @@ const { verificarToken } = require('./middleware/auth');
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
+app.use(express.json());
 
-// ✅ Configuración CORS explícita
+// ✅ Configuración de CORS
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://asistefrontend.vercel.app'
+];
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'https://asiste-frontend.vercel.app'],
+  origin: allowedOrigins,
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.options('*', cors());
 
-app.use(express.json());
+// ✅ Ruta básica para verificar que el backend está corriendo
+app.get('/', (req, res) => {
+  res.send('✅ Backend funcionando');
+});
 
 // 📦 Conexión a MongoDB
 const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/asiste';
-mongoose.connect(mongoUri).then(() => console.log('✅ Conectado a MongoDB')).catch(console.error);
+mongoose.connect(mongoUri)
+  .then(() => console.log('✅ Conectado a MongoDB'))
+  .catch(console.error);
 
 // 📂 Modelos locales
 const EmployeeSchema = new mongoose.Schema({
@@ -188,7 +200,7 @@ app.use('/api/aseo', verificarToken, aseoRoutes);
 const vacationRoutes = require('./routes/vacations');
 app.use('/vacations', vacationRoutes);
 
-// 🔑 Login
+// 🔑 Ruta de login
 const authRoutes = require('./routes/auth');
 app.use('/auth', authRoutes);
 
