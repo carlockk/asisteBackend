@@ -32,4 +32,4 @@ function soloAdminOGestor(req, res, next) {
   next();
 }
 
-module.exports = { verificarToken, soloAdmin, soloAdminOGestor };
+module.exports = { verificarToken, soloAdmin, soloAdminOGestor }; //modulo exportador
