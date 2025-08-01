@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const AseoItem = require('../models/AseoItem');
+const AseoChecklist = require('../models/AseoChecklist');
 
-// Middleware que asume que req.user existe (JWT/session)
+// Middleware
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user || !roles.includes(req.user.rol)) {
@@ -12,7 +13,7 @@ function requireRole(...roles) {
   };
 }
 
-// Obtener todos los ítems (público para empleados logueados)
+// Obtener ítems (público)
 router.get('/', async (req, res) => {
   try {
     const items = await AseoItem.find().sort({ creadoEn: -1 });
@@ -22,16 +23,13 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Crear ítem (admin y gestor)
+// Crear ítem
 router.post('/', requireRole('admin', 'gestor'), async (req, res) => {
   const { enunciado } = req.body;
   if (!enunciado) return res.status(400).json({ error: 'Enunciado requerido' });
 
   try {
-    const item = new AseoItem({
-      enunciado,
-      creadoPor: req.user.nombre
-    });
+    const item = new AseoItem({ enunciado, creadoPor: req.user.nombre });
     await item.save();
     res.status(201).json(item);
   } catch (err) {
@@ -39,24 +37,32 @@ router.post('/', requireRole('admin', 'gestor'), async (req, res) => {
   }
 });
 
-// Editar ítem (admin y gestor)
-router.put('/:id', requireRole('admin', 'gestor'), async (req, res) => {
-  const { enunciado } = req.body;
-  try {
-    const item = await AseoItem.findByIdAndUpdate(req.params.id, { enunciado }, { new: true });
-    res.json(item);
-  } catch (err) {
-    res.status(500).json({ error: 'Error al actualizar ítem' });
-  }
-});
+// Guardar checklist de empleado
+router.post('/checklist', requireRole('empleado', 'admin', 'gestor'), async (req, res) => {
+  const { itemsMarcados, observacion, hora } = req.body;
 
-// Eliminar ítem (solo admin)
-router.delete('/:id', requireRole('admin'), async (req, res) => {
+  if (!itemsMarcados || typeof itemsMarcados !== 'object') {
+    return res.status(400).json({ error: 'Items inválidos' });
+  }
+
   try {
-    await AseoItem.findByIdAndDelete(req.params.id);
-    res.json({ mensaje: 'Eliminado correctamente' });
+    const items = Object.entries(itemsMarcados).map(([id, cumple]) => ({
+      itemId: id,
+      cumple
+    }));
+
+    const checklist = new AseoChecklist({
+      usuario: req.user.nombre,
+      items,
+      observacion,
+      hora
+    });
+
+    await checklist.save();
+    res.status(201).json({ mensaje: 'Checklist guardado exitosamente' });
   } catch (err) {
-    res.status(500).json({ error: 'Error al eliminar ítem' });
+    console.error(err);
+    res.status(500).json({ error: 'Error al guardar checklist' });
   }
 });
 

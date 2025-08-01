@@ -7,17 +7,17 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/asiste');
 
 const UserSchema = new mongoose.Schema({
   nombre: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
+  correo: { type: String, required: true, unique: true }, // <-- correo
+  contraseña: { type: String, required: true },            // <-- contraseña
   rol: { type: String, enum: ['admin', 'gestor', 'empleado'], default: 'empleado' }
 });
 const User = mongoose.model('User', UserSchema);
 
 async function crearAdmin() {
-  const email = 'admin@asiste.com';
-  const yaExiste = await User.findOne({ email });
+  const correo = 'admin@asiste.com';
+  const yaExiste = await User.findOne({ correo });
   if (yaExiste) {
-    console.log('❌ Ya existe un usuario con ese email.');
+    console.log('❌ Ya existe un usuario con ese correo.');
     process.exit();
   }
 
@@ -25,8 +25,8 @@ async function crearAdmin() {
 
   const admin = new User({
     nombre: 'Administrador',
-    email,
-    password: hashed,
+    correo,
+    contraseña: hashed,
     rol: 'admin'
   });
 
