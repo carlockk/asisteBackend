@@ -19,14 +19,14 @@ function verificarToken(req, res, next) {
 }
 
 function soloAdmin(req, res, next) {
-  if (req.user.role !== 'admin') {
+  if (req.user.rol !== 'admin') {
     return res.status(403).json({ error: 'Acceso solo para administradores' });
   }
   next();
 }
 
 function soloAdminOGestor(req, res, next) {
-  if (!['admin', 'gestor'].includes(req.user.role)) {
+  if (!['admin', 'gestor'].includes(req.user.rol)) {
     return res.status(403).json({ error: 'Acceso denegado' });
   }
   next();
